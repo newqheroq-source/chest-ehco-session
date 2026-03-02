@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chest Echo 課程報名系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 修正 Lucide 圖示庫引入方式 -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
@@ -14,6 +13,19 @@
         .form-label { @apply text-sm font-medium text-slate-400 mb-2 block; }
         .checkbox-card { @apply flex items-center gap-2 bg-slate-800 p-3 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors border border-transparent; }
         .checkbox-card:has(input:checked) { @apply border-cyan-500 bg-cyan-500/10; }
+        
+        /* 載入動畫樣式 */
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-200 min-h-screen pb-20">
@@ -141,24 +153,21 @@
     </main>
 
     <script>
-        // 確保 Lucide 載入後再執行圖示初始化
+        // 初始化圖示
         function initIcons() {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             } else {
-                // 如果尚未載入則稍候再試
                 setTimeout(initIcons, 100);
             }
         }
-
-        // 當頁面載入完成
         window.addEventListener('DOMContentLoaded', initIcons);
 
-        // 您的 Google Apps Script 部署 URL
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbzdwV-cif3ll68HfgtZ3NMcqBFM-7QRxgmEx7_MTkDycwfnAw3_W8DNhgVzbdyvUXpe/exec"; 
+        // 更新為您的新部署網址
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwqolUmKuWF2crH41d4yrPWWvX8NRce7aZe-rAl49s8TjghO3VglUomOda-cAo-neI/exec"; 
         const API_KEY = ""; // 環境自動提供
 
-        // AI 生成邏輯
+        // AI 生成建議
         document.getElementById('aiBtn').addEventListener('click', async () => {
             const btn = document.getElementById('aiBtn');
             const exp = document.getElementById('expectations').value;
@@ -170,7 +179,7 @@
             }
 
             btn.disabled = true;
-            btn.innerHTML = `<i class="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></i> 分析中...`;
+            btn.innerHTML = `<span class="loader"></span> 分析中...`;
 
             try {
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
@@ -181,7 +190,7 @@
                     })
                 });
                 const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "暫時無法產生建議，請稍後再試。";
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "暫時無法產生建議。";
                 
                 document.getElementById('aiResponse').classList.remove('hidden');
                 document.getElementById('aiResponse').innerText = text;
@@ -196,7 +205,7 @@
             }
         });
 
-        // 表單提交邏輯
+        // 表單提交
         document.getElementById('registrationForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -208,20 +217,21 @@
 
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
-            btn.innerHTML = `<i class="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></i> 資料寫入中...`;
+            btn.innerHTML = `<span class="loader"></span> 資料送出中...`;
 
             const formData = new FormData(e.target);
             const dates = Array.from(checkedDates).map(el => el.value);
 
+            // 建構傳送到 GAS 的 JSON 物件
             const payload = {
                 name: formData.get('name'),
                 empId: formData.get('empId'),
                 identity: formData.get('identity'),
                 priorTraining: formData.get('priorTraining'),
                 skills: {
-                    pneumothorax: "未測量", 
-                    pleuralEffusion: "未測量",
-                    pathology: "未測量",
+                    pneumothorax: "未填寫", 
+                    pleuralEffusion: "未填寫",
+                    pathology: "未填寫",
                     procedure: formData.get('skillProcedure') 
                 },
                 preferredDates: dates,
@@ -231,12 +241,13 @@
                     proactiveUse: 3, 
                     clinicalDecision: 3
                 },
-                motivation: ["提升臨床診斷效率"],
+                motivation: ["提升臨床實作"],
                 expectations: formData.get('expectations'),
-                aiSuggestion: formData.get('aiSuggestion') || "學員未產生建議"
+                aiSuggestion: formData.get('aiSuggestion') || "無 AI 建議資料"
             };
 
             try {
+                // 發送到 GAS (no-cors 模式)
                 await fetch(GAS_URL, {
                     method: 'POST',
                     mode: 'no-cors', 
@@ -244,12 +255,13 @@
                     body: JSON.stringify(payload)
                 });
 
+                // 顯示成功畫面
                 document.getElementById('registrationForm').classList.add('hidden');
                 document.getElementById('successMsg').classList.remove('hidden');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } catch (err) {
                 console.error(err);
-                alert("提交失敗，請檢查網路連線或聯繫管理員。");
+                alert("提交失敗，請確認網路或試算表分頁名稱是否為 Raw_Data。");
                 btn.disabled = false;
                 btn.innerText = "重新送出報名資料";
             }
